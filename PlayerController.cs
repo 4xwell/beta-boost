@@ -2,6 +2,10 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+/// <summary>
+/// Handles player control, physics, and camera.
+/// </summary>
+
 [RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(PlayerInput))]
 public class PlayerController : MonoBehaviour
@@ -156,7 +160,7 @@ public class PlayerController : MonoBehaviour
 		// Existing code: using cameraForward and cameraRight
 		Vector3 desiredDirection = (cameraForward * moveInput.y + cameraRight * moveInput.x).normalized;
 
-		// Option: Increase acceleration effect
+		// Increase acceleration effect
 		horizontalVelocity += desiredDirection * Acceleration * Time.deltaTime * 1.2f; // Multiply acceleration slightly
 
 		// Limit to targetSpeed as before
