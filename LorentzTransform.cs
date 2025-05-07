@@ -7,75 +7,58 @@ using UnityEngine;
 
 public class LorentzTransform : MonoBehaviour
 {
-    PlayerController player;
-    private float4x4 lorentzMatrix = float4x4.identity;
+	public PlayerController player;
+	// private float4x4 lorentzMatrix = float4x4.identity;
+	public float4x4 Lambda { get; private set; } = float4x4.identity;
 
-    void Awake()
-    {
-        player = FindObjectOfType<PlayerController>();
-        if (player == null)
-        {
-            Debug.LogError("LorentzTransform could not find a PlayerController!");
-            enabled = false;
-        }
-    }
+	void Awake()
+	{
+		player = FindObjectOfType<PlayerController>();
+		if (player == null)
+		{
+			Debug.LogError("LorentzTransform could not find a PlayerController!");
+			enabled = false;
+		}
+	}
 
-    void Update()
-    {
-        UpdateLorentzMatrix();
-    }
+	void Update()
+	{
+		// Get relativistic properties
+		var beta    = player.Beta;
+		if (beta < 1e-6f) { Lambda = float4x4.identity; return; } // Avoid issues at small speeds
+		var b       = player.BetaVec;
+		var gamma   = player.Gamma;
+		var g       = gamma * b;
+		var f       = (gamma-1f)/(beta*beta);					 // factor for compactness
 
-    public float4x4 GetLorentzMatrix()
-    {
-        return lorentzMatrix;
-    }
+		// Construct the Minkowski transformation matrix
+		Lambda = new float4x4(
+			// Col 0 (ct)
+			new float4(gamma, g.x, g.y, g.z),
+			// Col 1 (x)
+			new float4(
+				g.x,
+				1f + f * b.x * b.x,
+				f * b.x * b.y,
+				f * b.x * b.z
+			),
+			// Col 2 (y)
+			new float4(
+				g.y,
+				f * b.y * b.x,
+				1f + f * b.y * b.y,
+				f * b.y * b.z
+			),
+			// Col 3 (z)
+			new float4(
+				g.z,
+				f * b.z * b.x,
+				f * b.z * b.y,
+				1f + f * b.z * b.z
+			)
+		);
+	}
 
-    private void UpdateLorentzMatrix()
-    {
-        float beta = player.Beta;
-        float3 b = player.BetaVec;
-        float gamma = player.Gamma;
-        float3 g = gamma * b;
-        float factor = (gamma - 1f) / (beta * beta);
+	public float4x4 GetLambda() => Lambda; // legacy function
 
-        // Return identity for small speed to avoid precision issues
-        if (beta < 1e-6f)
-        {
-            lorentzMatrix = float4x4.identity;
-            return;
-        }
-
-        // 2D - suppress vertical motion
-        // b.y = 0f;
-        // g.y = 0f;
-
-        // Construct the Minkowski transformation matrix
-        lorentzMatrix = new float4x4(
-            // Col0
-            new float4(gamma, g.x, g.y, g.z),
-            // Col1
-            new float4(
-                g.x,
-                1f + factor * b.x * b.x,
-                factor * b.x * b.y,
-                factor * b.x * b.z
-            ),
-            // Col2
-            new float4(
-                g.y,
-                factor * b.y * b.x,
-                1f + factor * b.y * b.y,
-                factor * b.y * b.z
-            ),
-            // Col3
-            new float4(
-                g.z,
-                factor * b.z * b.x,
-                factor * b.z * b.y,
-                1f + factor * b.z * b.z
-            )
-        );
-    }
 }
-
-

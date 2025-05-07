@@ -3,189 +3,158 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 /// <summary>
-/// Handles player control, physics, and camera.
+/// Third‑person controller that exposes relativistic β, γ and β⃗.
 /// </summary>
 
 [RequireComponent(typeof(CharacterController))]
 [RequireComponent(typeof(PlayerInput))]
 public class PlayerController : MonoBehaviour
 {
-	#region Properties and Variables
-	// ----- Movement Settings -----
-	[Header("Movement Settings")]
-	public float MoveSpeed = 5.0f;
-	public float SprintSpeed = 7.0f;
-	public float Acceleration = 10f;
-	public float Friction = 5f;
+	#region Settings
+	
+	[Header("Movement")]
+	[SerializeField] float moveSpeed 	= 40.0f;
+	[SerializeField] float sprintSpeed 	= 50.0f;
+	[SerializeField] float accel = 5f;
+	// [SerializeField] float friction 	= 5f;
 
-	// ----- Jump and Gravity Settings -----
-	[Header("Jump & Gravity")]
-	public float JumpHeight = 1.2f;
-	public float Gravity = -15f;
-	public float BounceFactor = 0.6f;
+	[Header("Jump / gravity")]
+	[SerializeField] float jumpHeight 	= 5.0f;
+	[SerializeField] float gravity 		= -15f;
+	[SerializeField] float BounceFactor = 0.5f;
 
-	// ----- Ground Check Settings -----
-	[Header("Ground Check")]
-	public float GroundedOffset = 0.5f;
-	public float GroundedRadius = 0.28f;
-	public LayerMask GroundLayers;
+	[Header("Ground check")]
+	[SerializeField] float GroundedOffset = 0.1f;
+	[SerializeField] float GroundedRadius = 2.0f;
+	[SerializeField] LayerMask GroundLayers;
 
-	// ----- Camera and Rotation Settings -----
-	[Header("Rotation & Camera")]
-	[Range(0.0f, 0.3f)]
-	public float RotationSmoothTime = 0.12f;
-	public GameObject CinemachineCameraTarget;
-	public float TopClamp = 70.0f;
-	public float BottomClamp = -30.0f;
-	public float CameraAngleOverride = 0.0f;
-	public bool LockCameraPosition = false;
+	[Header("Camera")]
+	[SerializeField] GameObject cinemachineTarget;
+	[SerializeField] float pitchMin 			= -30.0f;
+	[SerializeField] float pitchMax 			= 70.0f;
+	float yaw;
+	float pitch;
+	// [SerializeField, Range(0.0f, 0.3f)] float RotationSmoothTime = 0.12f;
+	// [SerializeField] float cameraAngleOverride 	= 0.0f;
+	// [SerializeField] bool lockCameraPosition   = false;
 
-	// ----- Audio Settings -----
 	[Header("Audio")]
-	public AudioClip JumpingAudioClip;
-	public AudioClip LandingAudioClip;
-	public AudioClip[] FootstepAudioClips;
-	[Range(0, 1)]
-	public float FootstepAudioVolume = 0.5f;
+	public AudioClip jumpClip;
+	public AudioClip landClip;
+	[SerializeField, Range(0.0f, 1.0f)] float audioVol = 0.5f;
+	// public AudioClip[] FootstepAudioClips;
 
-	// ----- Private Components and Variables -----
+	// ----- Internals -----
 	CharacterController controller;
-	PlayerInput playerInput;
-	Camera mainCamera;
-	Transform graphicsTransform;
+	PlayerInput 		input;
+	Camera 				mainCam;
+	// Transform 			graphicsTransform;
 
-	Vector2 moveInput = Vector2.zero;
-	Vector2 lookInput = Vector2.zero;
-	bool jumpInput = false;
-	bool sprintInput = false;
+	Vector3 velocity;
+	Vector3 prevPos;
+	Vector2 moveInput;
+	Vector2 lookInput;
+	bool 	jumpInput;
+	bool 	runInput;
+	bool 	grounded;
+	bool 	wasGrounded;
+	// const float inputThreshold = 0.01f;
 
-	Vector3 velocity = Vector3.zero;
-	bool grounded = false;
-	bool wasGrounded = false;
-	float rotationVelocity;
-	float cinemachineTargetYaw;
-	float cinemachineTargetPitch;
-	const float inputThreshold = 0.01f;
-	private Vector3 previousPosition;
-
-	bool IsCurrentDeviceMouse => playerInput.currentControlScheme == "KeyboardMouse";
+	// bool 	jumpInput = false;
+	// bool 	runInput  = false;
+	// bool grounded = false;
+	// bool wasGrounded = false;
+	// float rotationVelocity;
+	
+	// bool IsCurrentDeviceMouse => input.currentControlScheme == "KeyboardMouse";
 
 	#endregion
 
+
 	void Awake()
 	{
-		controller = GetComponent<CharacterController>();
-		playerInput = GetComponent<PlayerInput>();
-		if (mainCamera == null)
-			mainCamera = Camera.main;
+		controller 	= GetComponent<CharacterController>();
+		input 		= GetComponent<PlayerInput>();
+		mainCam 	= Camera.main;
+		prevPos 	= transform.position;
+		yaw = cinemachineTarget.transform.rotation.eulerAngles.y;
+
+		// if (mainCamera == null)
 
 		// This is the graphics mesh of the player
-		graphicsTransform = transform.Find("Graphics");
-		if (graphicsTransform == null)
-			Debug.LogWarning("No child named 'Graphics' found on the Player.");
+		// graphicsTransform = transform.Find("Graphics");
+		// if (graphicsTransform == null)
+		// Debug.LogWarning("No child named 'Graphics' found on the Player.");
 	}
 
-	void Start()
-	{
-		cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
-    	previousPosition = transform.position;
-	}
+	// void Start()
+	// {
+	// 	yaw = cinemachineTarget.transform.rotation.eulerAngles.y;
+	// 	prevPos = transform.position;
+	// }
+
 
 	void Update()
 	{
-		GroundedCheck();
-		ProcessInput();
-		ProcessGravityAndJump();
+		GroundCheck();
+		ReadInput();
+		GravityAndJump();
 		CameraRotation();
 
 		controller.Move(velocity * Time.deltaTime);
 		wasGrounded = grounded;
 
-		// ------------ Rolling animation ------------
-		// Advanced rolling animation using displacement
-		if (graphicsTransform != null)
-		{
-			Vector3 currentPos = transform.position;
-			Vector3 displacement = currentPos - previousPosition;
-			previousPosition = currentPos; // Update for next frame
-
-			// Only consider horizontal displacement
-			Vector3 horizontalDisplacement = new Vector3(displacement.x, 0f, displacement.z);
-			if (horizontalDisplacement.sqrMagnitude > 0.0001f)
-			{
-				// ballRadius must match the visual model (0.5f here as an example)
-				float ballRadius = 0.5f;
-				// Compute the angle (in radians) that the ball should have rotated: distance / radius
-				float angleRadians = -horizontalDisplacement.magnitude / ballRadius;
-				float angleDegrees = angleRadians * Mathf.Rad2Deg;
-
-				// The rotation axis is perpendicular to the displacement and up vector
-				Vector3 rotationAxis = Vector3.Cross(horizontalDisplacement.normalized, Vector3.up);
-				graphicsTransform.Rotate(rotationAxis, angleDegrees, Space.World);
-			}
-		}
-		// Simple rolling animation
-		// if (graphicsTransform != null)
-		// {
-		// 	Vector3 horizontalVelocity = new Vector3(velocity.x, 0f, velocity.z);
-		// 	if (horizontalVelocity.magnitude > 0.001f)
-		// 	{
-		// 		float ballRadius = 0.5f;
-		// 		float angleDegrees = (horizontalVelocity.magnitude * Time.deltaTime) / ballRadius * Mathf.Rad2Deg;
-		// 		Vector3 rotationAxis = Vector3.Cross(Vector3.up, horizontalVelocity.normalized);
-		// 		graphicsTransform.Rotate(rotationAxis, angleDegrees, Space.World);
-		// 	}
-		// }
+		RollBall();
 	}
 
-	// ----- Input Callbacks -----
-	public void OnMove(InputValue value) 	{ moveInput = value.Get<Vector2>(); }
-	public void OnLook(InputValue value) 	{ lookInput = value.Get<Vector2>(); }
-	public void OnJump(InputValue value) 	{ jumpInput = value.isPressed; }
-	public void OnSprint(InputValue value) 	{ sprintInput = value.isPressed; }
+	// ----- Input -----
+	public void OnMove	(InputValue v) => moveInput = v.Get<Vector2>();
+	public void OnLook	(InputValue v) => lookInput = v.Get<Vector2>();
+	public void OnJump	(InputValue v) => jumpInput = v.isPressed;
+	public void OnSprint(InputValue v) => runInput = v.isPressed;
 
-	void ProcessInput()
+	void ReadInput()
 	{
-		Vector3 horizontalVelocity = new Vector3(velocity.x, 0f, velocity.z);
+		Vector3 horizVel = new Vector3(velocity.x, 0f, velocity.z);
 
-		Vector3 cameraForward = mainCamera.transform.forward;
-		cameraForward.y = 0;
-		cameraForward.Normalize();
-		Vector3 cameraRight = mainCamera.transform.right;
-		cameraRight.y = 0;
-		cameraRight.Normalize();
+		Vector3 camForward = mainCam.transform.forward;
+		camForward.y = 0;
+		camForward.Normalize();
+		Vector3 camRight = mainCam.transform.right;
+		camRight.y = 0;
+		camRight.Normalize();
 
-		float targetSpeed = sprintInput ? SprintSpeed : MoveSpeed;
+		float targetSpeed = runInput ? sprintSpeed : moveSpeed;
 
-		// Existing code: using cameraForward and cameraRight
-		Vector3 desiredDirection = (cameraForward * moveInput.y + cameraRight * moveInput.x).normalized;
+		// Existing code: using camForward and camRight
+		Vector3 targetDir = (camForward * moveInput.y + camRight * moveInput.x).normalized;
 
 		// Increase acceleration effect
-		horizontalVelocity += desiredDirection * Acceleration * Time.deltaTime * 1.2f; // Multiply acceleration slightly
+		horizVel += targetDir * accel * Time.deltaTime * 1.2f; // Multiply acceleration slightly
 
 		// Limit to targetSpeed as before
-		if (horizontalVelocity.magnitude > targetSpeed)
-			horizontalVelocity = horizontalVelocity.normalized * targetSpeed;
+		if (horizVel.magnitude > targetSpeed)
+			horizVel = horizVel.normalized * targetSpeed;
 
 		// Instead of hardcoding 10f, increase blending factor for velocity alignment with camera forward
 		if (lookInput.sqrMagnitude > 0.01f)
 		{
-			float currentSpeed = horizontalVelocity.magnitude;
-			horizontalVelocity = Vector3.Lerp(horizontalVelocity, cameraForward * currentSpeed, Time.deltaTime * 15f); // Increased multiplier
+			float currentSpeed = horizVel.magnitude;
+			horizVel = Vector3.Lerp(horizVel, camForward * currentSpeed, Time.deltaTime * 15f); // Increased multiplier
 		}
 
 		// // Accelerate or decelerate
 		// if (moveInput.sqrMagnitude >= inputThreshold)
 		// {
-		// 	Vector3 desiredDirection = (cameraForward * moveInput.y + cameraRight * moveInput.x).normalized;
-		// 	horizontalVelocity += desiredDirection * Acceleration * Time.deltaTime;
+		// 	Vector3 targetDir = (camForward * moveInput.y + camRight * moveInput.x).normalized;
+		// 	horizontalVelocity += targetDir * acceleration * Time.deltaTime;
 		// 	if (horizontalVelocity.magnitude > targetSpeed)
 		// 		horizontalVelocity = horizontalVelocity.normalized * targetSpeed;
 		// }
 		// else
 		// {
 		// 	horizontalVelocity = Vector3.MoveTowards(
-		// 		horizontalVelocity, Vector3.zero, Friction * Time.deltaTime);
+		// 		horizontalVelocity, Vector3.zero, friction * Time.deltaTime);
 		// }
 
 		// // Realign velocity with look direction
@@ -193,35 +162,36 @@ public class PlayerController : MonoBehaviour
 		// {
 		// 	float currentSpeed = horizontalVelocity.magnitude;
 		// 	horizontalVelocity = Vector3.Lerp(
-		// 		horizontalVelocity, cameraForward * currentSpeed, Time.deltaTime * 10f);
+		// 		horizontalVelocity, camForward * currentSpeed, Time.deltaTime * 10f);
 		// }
 
-		velocity.x = horizontalVelocity.x;
-		velocity.z = horizontalVelocity.z;
+		velocity.x = horizVel.x;
+		velocity.z = horizVel.z;
 
 		// Smoothly rotate the player to match movement direction
 		// Vector3 horizMove = new Vector3(horizontalVelocity.x, 0f, horizontalVelocity.z);
 		// if (horizMove.sqrMagnitude > 0.001f)
 		// {
 		// 	float targetRotation = Mathf.Atan2(horizMove.x, horizMove.z) * Mathf.Rad2Deg;
-		// 	float smoothedRotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetRotation, ref rotationVelocity, RotationSmoothTime);
+		// float smoothedRotation = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetRotation, ref rotationVelocity, RotationSmoothTime);
 		// 	transform.rotation = Quaternion.Euler(0f, smoothedRotation, 0f);
 		// }
 	}
 
-	void ProcessGravityAndJump()
+	void GravityAndJump()
 	{
 		if (jumpInput && grounded)
 		{
-			velocity.y = Mathf.Sqrt(JumpHeight * -2f * Gravity);
-			if (JumpingAudioClip)
-				AudioSource.PlayClipAtPoint(JumpingAudioClip, transform.position, FootstepAudioVolume);
+			// velocity.y = Mathf.Sqrt(jumpHeight * -1f * gravity);
+			velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+			if (jumpClip)
+				AudioSource.PlayClipAtPoint(jumpClip, transform.position, audioVol);
 			jumpInput = false;
 		}
 
 		if (!grounded)
 		{
-			velocity.y += Gravity * Time.deltaTime;
+			velocity.y += gravity * Time.deltaTime;
 		}
 		else
 		{
@@ -229,51 +199,42 @@ public class PlayerController : MonoBehaviour
 			if (!wasGrounded && velocity.y < -1f)
 			{
 				velocity.y = -velocity.y * BounceFactor;
-				if (LandingAudioClip)
-					AudioSource.PlayClipAtPoint(LandingAudioClip, transform.position, FootstepAudioVolume);
+				if (landClip)
+					AudioSource.PlayClipAtPoint(landClip, transform.position, audioVol);
 			}
 			if (velocity.y < 0f) velocity.y = 0f;
 		}
 	}
 
-	// ----- Grounded Check -----
-	void GroundedCheck()
+
+	void GroundCheck()
 	{
 		Vector3 spherePos = new Vector3(transform.position.x, transform.position.y - GroundedOffset, transform.position.z);
 		grounded = Physics.CheckSphere(spherePos, GroundedRadius, GroundLayers, QueryTriggerInteraction.Ignore);
 	}
 
-	// Ground check using SphereCast
-	// void GroundedCheck()
-	// {
-	// 	// Start the sphere cast slightly above the player's feet
-	// 	Vector3 sphereCastOrigin = transform.position + Vector3.up * 0.1f;
-	// 	float sphereCastRadius = GroundedRadius;
-	// 	float sphereCastDistance = GroundedOffset + 0.2f; // Increase distance slightly for uneven surfaces
-	// 	RaycastHit hit;
-	// 	grounded = Physics.SphereCast(sphereCastOrigin, sphereCastRadius, Vector3.down, out hit, sphereCastDistance, GroundLayers, QueryTriggerInteraction.Ignore);
-	// }
-
 	void CameraRotation()
 	{
-		if (lookInput.sqrMagnitude >= inputThreshold && !LockCameraPosition)
+		// if (lookInput.sqrMagnitude >= inputThreshold && !lockCameraPosition)
+		if (lookInput.sqrMagnitude >= 0.01f)
 		{
-			float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
-			cinemachineTargetYaw += lookInput.x * deltaTimeMultiplier;
-			cinemachineTargetPitch += lookInput.y * deltaTimeMultiplier;
+			float mult = input.currentControlScheme == "KeyboardMouse" ? 1f : Time.deltaTime;
+			yaw 	 += lookInput.x * mult;
+			pitch 	 += lookInput.y * mult;
+
+			// float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
+			// yaw += lookInput.x * deltaTimeMultiplier;
+			// pitch += lookInput.y * deltaTimeMultiplier;
 			// float stickSensitivity = 0.01f; // for example
-			// cinemachineTargetYaw   += lookInput.x * stickSensitivity * Time.deltaTime;
-			// cinemachineTargetPitch += lookInput.y * stickSensitivity * Time.deltaTime;
+			// yaw   += lookInput.x * stickSensitivity * Time.deltaTime;
+			// pitch += lookInput.y * stickSensitivity * Time.deltaTime;
 		}
 
-		cinemachineTargetYaw = ClampAngle(cinemachineTargetYaw, float.MinValue, float.MaxValue);
-		cinemachineTargetPitch = ClampAngle(cinemachineTargetPitch, BottomClamp, TopClamp);
+		yaw = ClampAngle(yaw, float.MinValue, float.MaxValue);
+		pitch = ClampAngle(pitch, pitchMin, pitchMax);
 
-		CinemachineCameraTarget.transform.rotation = Quaternion.Euler(
-			cinemachineTargetPitch + CameraAngleOverride,
-			cinemachineTargetYaw,
-			0f
-		);
+		cinemachineTarget.transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
+			// pitch + cameraAngleOverride, yaw, 0f);
 	}
 
 	static float ClampAngle(float angle, float min, float max)
@@ -283,11 +244,64 @@ public class PlayerController : MonoBehaviour
 		return Mathf.Clamp(angle, min, max);
 	}
 
-	// ----- Public Relativistic Properties -----
-	public Vector3 Velocity => velocity;
-	public float	Beta 	 => Mathf.Clamp(velocity.magnitude / MoveSpeed, 0f, 0.99f);
-	public float    Gamma	 => 1f / Mathf.Sqrt(1f - Beta * Beta);
-	public Vector3 VelDir   => velocity.sqrMagnitude > 1e-6f ? velocity.normalized : Vector3.forward;
-	public float3   BetaVec	 => VelDir * Beta;
+	void RollBall()
+	{
+		// Rolling animation of character ball
+		Transform gfx = transform.Find("Graphics");
+		if (!gfx) return;
+
+		Vector3 disp = transform.position - prevPos; prevPos = transform.position;
+		Vector3 horiz = new(disp.x, 0, disp.z);
+		if (horiz.sqrMagnitude < 1e-4f) return;
+
+		float radius = 0.5f;
+		float angle  = -horiz.magnitude / radius * Mathf.Rad2Deg;
+		Vector3 axis = Vector3.Cross(horiz.normalized, Vector3.up);
+		gfx.Rotate(axis, angle, Space.World);
+
 	}
 
+	// ----- Public Relativistic Properties -----
+	public Vector3 Velocity => velocity;
+	public float	Beta 	 => Mathf.Clamp(velocity.magnitude / moveSpeed, 0f, 0.99f);
+	public float	Gamma	 => 1f / Mathf.Sqrt(1f - Beta * Beta);
+	public Vector3 VelDir   => velocity.sqrMagnitude > 1e-6f ? velocity.normalized : Vector3.forward;
+	public float3	BetaVec	 => VelDir * Beta;
+}
+
+
+// ------------ Rolling animation ------------
+// Advanced rolling animation using displacement
+// if (graphicsTransform != null)
+// {
+// 	Vector3 currentPos = transform.position;
+// 	Vector3 displacement = currentPos - prevPos;
+// 	prevPos = currentPos; // Update for next frame
+
+// 	// Only consider horizontal displacement
+// 	Vector3 horizontalDisplacement = new Vector3(displacement.x, 0f, displacement.z);
+// 	if (horizontalDisplacement.sqrMagnitude > 0.0001f)
+// 	{
+// 		// ballRadius must match the visual model (0.5f here as an example)
+// 		float ballRadius = 0.5f;
+// 		// Compute the angle (in radians) that the ball should have rotated: distance / radius
+// 		float angleRadians = -horizontalDisplacement.magnitude / ballRadius;
+// 		float angleDegrees = angleRadians * Mathf.Rad2Deg;
+
+// 		// The rotation axis is perpendicular to the displacement and up vector
+// 		Vector3 rotationAxis = Vector3.Cross(horizontalDisplacement.normalized, Vector3.up);
+// 		graphicsTransform.Rotate(rotationAxis, angleDegrees, Space.World);
+// 	}
+// }
+// Simple rolling animation
+// if (graphicsTransform != null)
+// {
+// 	Vector3 horizontalVelocity = new Vector3(velocity.x, 0f, velocity.z);
+// 	if (horizontalVelocity.magnitude > 0.001f)
+// 	{
+// 		float ballRadius = 0.5f;
+// 		float angleDegrees = (horizontalVelocity.magnitude * Time.deltaTime) / ballRadius * Mathf.Rad2Deg;
+// 		Vector3 rotationAxis = Vector3.Cross(Vector3.up, horizontalVelocity.normalized);
+// 		graphicsTransform.Rotate(rotationAxis, angleDegrees, Space.World);
+// 	}
+// }

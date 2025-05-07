@@ -2,120 +2,126 @@ using UnityEngine;
 using Unity.Mathematics;
 using System.Collections.Generic;
 
+/// <summary>
+/// Applies a Lorentz boost to mesh vertices for relativistic effects.
+/// </summary>
+
 public class VertexManager : MonoBehaviour
 {
-    [Tooltip("Parent object containing all meshes to be relativistically transformed.")]
-    public Transform environmentRoot;
+	[Header("Scene References")]
+	public Transform 		envRoot;	// static environment parent
+	public PlayerController player;		// provides β, γ and v̂
+	public LorentzTransform lorentz;	// provides Lorentz matrix
 
-    [Tooltip("Reference to the player controlling the simulation.")]
-    public PlayerController player;
+	// Data structure to hold per-object mesh info.
+	class MeshData
+	{
+		public MeshFilter	filter;		// Renderer component
+		public Mesh 		workMesh;  // Mesh copy safe to modify
+		public Vector3[] 	restWorld; // Cached rest-frame vertices in world space
+	}
+	
+	readonly List<MeshData> meshes = new();	// list static meshes
 
-    [Tooltip("Reference to the component computing the Lorentz boost matrix.")]
-    public LorentzTransform lorentz;
+	void Start()
+	{
+		// Auto‑set references if left empty
+		player  = player  != null ? player  : FindObjectOfType<PlayerController>();
+		lorentz = lorentz != null ? lorentz : FindObjectOfType<LorentzTransform>();
+		envRoot = envRoot != null ? envRoot : transform;
 
-    [Tooltip("The origin of the scene (defaults to the environmentRoot's position).")]
-    public Vector3 sceneOrigin;
+		// Find all MeshFilter components in the environment
+		foreach (var mf in envRoot.GetComponentsInChildren<MeshFilter>())
+		{
+			if (!mf) continue;
 
-    // Data structure to hold per-object mesh info.
-    class MeshData
-    {
-        public MeshFilter meshFilter;
-        public Mesh runtimeMesh;              	// A runtime copy of the mesh (to avoid modifying the original asset)
-        public Vector3[] originalWorldVertices; // The rest vertices in world space
-    }
+			var data 		= new MeshData { filter = mf };          // Create a new MeshData instance
+			data.workMesh 	= mf.mesh = Instantiate(mf.sharedMesh);	// Duplicate the mesh
+			var localVerts 	= data.workMesh.vertices;               // Fetch the vertices from the duplicate in local space
 
-    // List of all objects (with meshes) to transform.
-    List<MeshData> meshObjects = new List<MeshData>();
+			// Store the local rest vertices in world space
+			data.restWorld 	= new Vector3[localVerts.Length];       // Array to store rest frame world-space positions
+			for (int i = 0; i < localVerts.Length; ++i)
+				data.restWorld[i] = mf.transform.TransformPoint(localVerts[i]); // local → world
+			meshes.Add(data);
 
-    void Start()
-    {
-        // Auto-find player and lorentz components if not assigned.
-        if (player == null)
-            player = FindObjectOfType<PlayerController>();
-        if (lorentz == null)
-            lorentz = FindObjectOfType<LorentzTransform>();
+			}
+	}
 
-        // If no environmentRoot is assigned, assume this GameObject is the parent.
-        if (environmentRoot == null)
-            environmentRoot = this.transform;
+	void Update()
+	{
+		// Get relativistic properties and Lorentz matrix
+		var L	 = lorentz.Lambda;   	 	 	     // Lorentz matrix
+		var pPos = (float3)player.transform.position; // Player position
+		var b	 = player.BetaVec; 					 // β · v̂
 
-        // Use the environmentRoot's position as the scene origin.
-        sceneOrigin = environmentRoot.position;
+		// For each mesh object, update every vertex
+		foreach (var m in meshes)
+		{
+			var newVerts = new Vector3[m.restWorld.Length];
+			for (int i = 0; i < m.restWorld.Length; i++)
+			{
+				// Vertex in rest frame S
+				var relPos 	 = (float3)m.restWorld[i] - pPos; // Relative position
+				var tRest 	 = math.dot(-b, relPos);  		 // Simultaneity time coordinate 
+				var rest4 	 = new float4(tRest, relPos); 	  // X = (ct, x, y, z)
+				// var rest4 	 = new float4(0, relPos); 	  // Crazy results w/o tRest!!
 
-        // Find all MeshFilter components under the environmentRoot.
-        MeshFilter[] mfs = environmentRoot.GetComponentsInChildren<MeshFilter>();
-        foreach (MeshFilter mf in mfs)
-        {
-            if (mf == null)
-                continue;
+				// Boost to player frame S'
+				var boost4 	 = math.mul(L, rest4);			 // X' = ΛX
+				newVerts[i]  = m.filter.transform.InverseTransformPoint((Vector3)(pPos + boost4.yzw));
+			}
 
-            // Create a new MeshData entry.
-            MeshData data = new MeshData();
-            data.meshFilter = mf;
-
-            // Create a runtime copy of the mesh to avoid modifying the shared asset.
-            data.runtimeMesh = Instantiate(mf.mesh);
-            mf.mesh = data.runtimeMesh;
-
-            // Store the original (rest) vertices in world space.
-            Vector3[] originalVertices = data.runtimeMesh.vertices;
-            data.originalWorldVertices = new Vector3[originalVertices.Length];
-            for (int i = 0; i < originalVertices.Length; i++)
-            {
-                // Convert each vertex from local space (of the mesh) to world space.
-                data.originalWorldVertices[i] = mf.transform.TransformPoint(originalVertices[i]);
-            }
-            meshObjects.Add(data);
-        }
-    }
-
-    void Update()
-    {
-        // Get the current Lorentz transformation matrix from your NewLorentzTransform3D.
-        float4x4 L = lorentz.GetLorentzMatrix();
-        Vector3 playerPos = player.transform.position;
-        Vector3 betaVec = player.BetaVec;
-        float gamma = player.Gamma;
-        Vector3 offset = playerPos - sceneOrigin; // This offset converts world positions relative to the player.
-
-        // For each mesh object, update every vertex.
-        foreach (MeshData data in meshObjects)
-        {
-            Vector3[] newVertices = new Vector3[data.originalWorldVertices.Length];
-            for (int i = 0; i < data.originalWorldVertices.Length; i++)
-            {
-                // Retrieve the vertex in its rest state (in world space).
-                Vector3 restWorldPos = data.originalWorldVertices[i];
-
-                // Compute the vertex's relative position in the scene:
-                // (world position relative to the scene origin, minus the player's offset)
-                Vector3 relativePos = (restWorldPos - sceneOrigin) - offset;
-
-                // Compute the time coordinate for simultaneity:
-                // t = gamma * dot(-betaVec, relativePos)
-                float t_env = Vector3.Dot(-betaVec, relativePos);
-				// ------------ OLD: causes over bounce of scene objects ------------
-                // float t_env = gamma * Vector3.Dot(-betaVec, relativePos);
-
-                // Build the 4-vector (t, x, y, z)
-                float4 rest4 = new float4(t_env, relativePos.x, relativePos.y, relativePos.z);
-
-                // Apply the Lorentz transformation.
-                float4 transformed = math.mul(L, rest4);
-
-                // The transformed spatial coordinates are the new relative position.
-                Vector3 newRelativePos = new Vector3(transformed.y, transformed.z, transformed.w);
-
-                // Convert the new relative position back to world space.
-                Vector3 newWorldPos = playerPos + newRelativePos;
-
-                // Finally, convert the world position back into the mesh object's local space.
-                newVertices[i] = data.meshFilter.transform.InverseTransformPoint(newWorldPos);
-            }
-
-            // Update the mesh with the new vertex positions and recalculate bounds.
-            data.runtimeMesh.vertices = newVertices;
-            data.runtimeMesh.RecalculateBounds();
-        }
-    }
+			// Update mesh with new positions and recalculate bounds.
+			m.workMesh.vertices = newVerts;
+			m.workMesh.RecalculateBounds();
+		}
+	}
 }
+
+// // Create a new MeshData entry.
+// MeshData data = new MeshData();
+// data.filter = mf;
+
+// // Create a runtime copy of the mesh to avoid modifying the original asset
+// data.restMesh = Instantiate(mf.mesh);
+// mf.mesh = data.restMesh;
+
+// // Store the local rest vertices in world space
+// Vector3[] localVerts = data.restMesh.vertices;
+// data.restWorld = new Vector3[localVerts.Length];
+// for (int i = 0; i < localVerts.Length; i++)
+// {
+//     // Convert each vertex from local space (of the mesh) to world space
+//     data.restWorld[i] = mf.transform.TransformPoint(localVerts[i]);
+// }
+// meshObjects.Add(data);
+
+
+// var newWorld = pPos + boost4.yzw;			// New world position
+// Store mesh-local coordinates
+// newVerts[i]  = m.filter.transform.InverseTransformPoint((Vector3)newWorld);
+
+
+// Compute the vertex's position relative to player
+// Vector3 relPos = m.restWorld[i] - pPos;
+// Compute the time coordinate for simultaneity:
+// float tEnv = Vector3.Dot(-b, relPos);
+// NOTE: using -b since environment moves with -v relative player
+// Build the 4-vector (t, x, y, z)
+// float4 rest4 = new float4(0, relPos.x, relPos.y, relPos.z); // CRAZY WITHOUT tRest!!!
+// Apply the Lorentz transformation
+// float4 boost4 = math.mul(L, rest4);
+// The transformed spatial coordinates are the new relative position
+// Vector3 newRelPos = boost4.yzw;
+// Convert the new relative position back to world space
+// Vector3 newWorld = pPos + newRelPos;
+// Finally, convert the world position back into the mesh object's local space
+// newVerts[i] = m.meshFilter.transform.InverseTransformPoint(newWorld);
+
+// var relPos = data.restWorld[i] - pPos;
+// var timeCoord = math.dot(-betaVec, relPos);
+// var rest4 = new float4(timeCoord, relPos);
+// var boosted4 = math.mul(L, rest4);
+// var newWorld = pPos + boosted4.yzw;         // swizzle yzw → float3
+// newVertices[i] = data.meshFilter.transform.InverseTransformPoint(newWorld);
