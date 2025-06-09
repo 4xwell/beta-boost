@@ -1,4 +1,4 @@
-# $\beta$-boost
+# β-Boost
 ### _Special Relativity Simulator in Unity_
 
 ## Description
