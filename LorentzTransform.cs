@@ -8,7 +8,6 @@ using UnityEngine;
 public class LorentzTransform : MonoBehaviour
 {
 	public PlayerController player;
-	// private float4x4 lorentzMatrix = float4x4.identity;
 	public float4x4 Lambda { get; private set; } = float4x4.identity;
 
 	void Awake()
@@ -25,13 +24,13 @@ public class LorentzTransform : MonoBehaviour
 	{
 		// Get relativistic properties
 		var beta    = player.Beta;
-		if (beta < 1e-6f) { Lambda = float4x4.identity; return; } // Avoid issues at small speeds
+		if (beta < 1e-6f) { Lambda = float4x4.identity; return; } // Avoid small speed issues
 		var b       = player.BetaVec;
 		var gamma   = player.Gamma;
 		var g       = gamma * b;
-		var f       = (gamma-1f)/(beta*beta);					 // factor for compactness
+		var f       = (gamma-1f)/(beta*beta);			  // factor for compactness
 
-		// Construct the Minkowski transformation matrix
+		// Construct the transformation matrix
 		Lambda = new float4x4(
 			// Col 0 (ct)
 			new float4(gamma, g.x, g.y, g.z),
@@ -60,5 +59,4 @@ public class LorentzTransform : MonoBehaviour
 	}
 
 	public float4x4 GetLambda() => Lambda; // legacy function
-
 }
