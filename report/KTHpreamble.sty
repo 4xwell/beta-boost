@@ -1,0 +1,200 @@
+%================================================================
+%  KTHpreamble.sty   —   personal KTH article preamble
+%================================================================
+% \NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{KTHpreamble}[2025/04/25 v2.0 KTH article preamble]
+
+% ---------- Core encoding & language ----------
+\RequirePackage[utf8]{inputenc}
+\RequirePackage[T1]{fontenc}
+\RequirePackage[main=english]{babel}
+
+% ---------- PDF management & links ----------
+\RequirePackage{pdfpages}
+\RequirePackage{hyperref}
+\RequirePackage{url}
+\RequirePackage{csquotes}
+
+% ---------- Bibliography ----------
+\RequirePackage[backend=biber,style=nature]{biblatex}
+
+% ---------- User metadata ----------
+\providecommand{\ProjectTitle}{}
+\providecommand{\ProjectSubTitle}{}
+\providecommand{\ProjectDescription}{}
+\providecommand{\CourseName}{}
+\providecommand{\CourseCode}{}
+
+% ---------- Colors ----------
+\RequirePackage{xcolor}
+\RequirePackage[skins, breakable]{tcolorbox}
+\definecolorset{HTML}{}{}{% KTH Brand Guidelines colors
+    white,FFFFFF;%
+    sand,EBE5E0;%
+    KTH blue,004791;%
+    sky blue,6298D2;%
+    navy,000061;%
+    light blue,DEF0FF;%
+    digital blue,0029ED;% This color cannot be reproduced in print, use KTH blue instead.
+    dark brick,78001A;%
+    brick,E86A58%
+}
+\hypersetup{colorlinks, linkcolor=brick, urlcolor=sky blue, citecolor=sky blue}
+
+% ---------- Mathematics ----------
+\RequirePackage{amsmath,amssymb,amsthm,mathrsfs,mathtools}
+\newtagform{brackets}{[}{]}
+\RequirePackage{siunitx,icomma,cancel}
+
+% ---------- Typography & layout ----------
+\RequirePackage[explicit]{titlesec}
+\RequirePackage{helvet}
+\RequirePackage{fourier}
+\renewcommand{\familydefault}{\rmdefault}
+\RequirePackage[defaultlines=2,all]{nowidow}
+\RequirePackage[margin=1in,a4paper]{geometry}
+
+% ---------- Spacing ----------
+\setlength{\parindent}{1.5em}
+\setlength{\columnsep}{1.2em}
+\setlength{\parskip}{0.5em}
+
+% ---------- General utilities ----------
+\RequirePackage{multirow,multicol,fancyhdr,float,lipsum}
+
+% ---------- Figures & graphics ----------
+\RequirePackage{graphicx,svg,tikz}
+\usetikzlibrary{arrows.meta,decorations.markings,shapes,arrows,positioning}
+
+% ---------- Code listings ----------
+\RequirePackage{listings}           % classic
+\RequirePackage{minted}             % modern — needs -shell-escape on Overleaf
+\usemintedstyle{emacs}
+
+% ---------- Algorithms ----------
+\RequirePackage{algorithm}
+\RequirePackage{algorithmic}        % legacy; algorithmicx preferred for new work
+
+% ---------- Table of Contents ----------
+\RequirePackage[nottoc,numbib]{tocbibind}
+\RequirePackage[titles]{tocloft}
+\renewcommand{\cftsecfont}{\bfseries\hypersetup{linkcolor=navy}\sffamily}
+\renewcommand{\cftsecpagefont}{\sffamily}
+\renewcommand{\cftsubsecfont}{\hypersetup{linkcolor=black}\sffamily}
+\renewcommand{\cftsubsecpagefont}{\sffamily}
+\renewcommand{\cftsubsubsecfont}{\hypersetup{linkcolor=black}\sffamily}
+\renewcommand{\cftsubsubsecpagefont}{\sffamily}
+\renewcommand{\cftdotsep}{4}
+\setlength{\cftparskip}{5pt}
+% \setlength{\cfttitleskip}{-2.2em}
+\RequirePackage[toc,title,header]{appendix}
+\renewcommand{\appendixtocname}{APPENDIX}
+\RequirePackage{titling}
+\renewcommand{\setthesubsection}{\Alph{subsection}}
+
+% ---------- ToC: uppercase SECTION entries only ----------
+\RequirePackage{textcase,etoolbox} % \MakeTextUppercase + \patchcmd
+\makeatletter
+\patchcmd{\l@section}{#1}{\MakeTextUppercase{#1}}{}{}
+\makeatother
+
+% ---------- Captions ----------
+\RequirePackage{caption}
+\captionsetup[figure]{name={Fig.}}
+\captionsetup{
+    labelfont       = {bf,sf,footnotesize},
+    textfont        = {sf,footnotesize},
+    format          = hang,
+    labelformat     = simple,
+    labelsep        = period,
+    singlelinecheck = false}
+
+% ---------- Theorems & custom math symbols ----------
+\newtheorem{postulate}{Postulate}
+\makeatletter
+\newenvironment{post}
+  {\postulate\phantomsection\def\@currentlabel{Postulate}}
+  {\endpostulate}
+\makeatother
+
+\DeclareUnicodeCharacter{221E}{$\infty$}
+\DeclareUnicodeCharacter{03C3}{$\sigma$}
+\DeclareUnicodeCharacter{0263}{$\gamma$}
+
+\DeclarePairedDelimiter\bra{\langle}{\rvert}
+\DeclarePairedDelimiter\ket{\lvert}{\rangle}
+\DeclarePairedDelimiterX\braket[2]{\langle}{\rangle}{#1\,\delimsize\vert\,#2}
+
+% ---------- Section titles ----------
+% ---------- Rules below section titles -------------
+\newcommand{\SectionRule}{\titlerule[.5pt]}  % <— NEW
+\newcommand{\NoRule}{\renewcommand{\SectionRule}{}}  % <— NEW
+
+\titleformat{\section}
+    {\color{gray}\SectionRule\large\bfseries\sffamily\color{navy}\vspace{2em}}
+  {\thesection.}
+  {1em}
+  {\MakeUppercase{#1}}
+\titlespacing*{\section}{0em}{3em}{1em}
+
+\titleformat{\subsection}
+    {\normalfont\bfseries\sffamily}
+    {\thesubsection}
+    {1em}
+    {\MakeUppercase{#1}}
+\titlespacing*{\subsection}{0em}{2em}{1em}
+
+\titleformat{\subsubsection}
+    {\normalfont\sffamily}
+    {\thesubsubsection}
+    {1em}
+    {\MakeUppercase{#1}}
+\titlespacing*{\subsubsection}{0em}{2em}{1em}
+
+\titleformat{\paragraph}[runin]{\small\sffamily\bfseries}{0em}{0em}{#1}
+\titlespacing*{\paragraph}{0em}{0em}{0.5em}
+
+% ---------- Title page & headers ----------
+\pretitle{\Huge\bfseries\sffamily}
+\posttitle{\par}
+\preauthor{\sffamily}
+\postauthor{\par}
+\predate{\small\sffamily}
+\postdate{\par}
+% \postdate{\par{\color{gray}\noindent\hrulefill}}
+
+\fancypagestyle{titlepage}{
+    \fancyhf{}
+    \fancyhead[L]{\footnotesize\sffamily\color{gray}KTH Royal Institute of Technology}
+    \fancyhead[R]{\footnotesize\sffamily\color{gray}Department of Physics}
+    \fancyfoot[L]{\footnotesize\sffamily\color{gray}\ProjectDescription}
+    \fancyfoot[R]{\footnotesize\sffamily\color{gray}\CourseName\ \CourseCode}
+    \renewcommand{\footrulewidth}{0.5pt}
+    \futurelet\TMPfootrule\def\footrule{{\color{gray}\TMPfootrule}}
+}
+
+\pagestyle{fancy}
+\fancyhf{}                          % clear headers and footers
+\fancyhead[L]{\textsf{\small Section \thesection}}  % Section name in the header
+\fancyfoot[C]{\footnotesize\sffamily\color{gray}\thepage} % Page number in the footer
+\renewcommand{\headrulewidth}{0pt}  % Remove header rule
+\renewcommand{\footrulewidth}{0pt}  % Remove footer rule
+\fancyhead[R]{\footnotesize\sffamily\color{gray}\textit{\ProjectTitle}}
+\fancyhead[L]{\mbox{\footnotesize\sffamily\color{gray}\leftmark}} 
+
+
+% ---------- Title metadata ----------
+\title{%
+  \begin{flushleft}
+  \ProjectTitle\\
+  \vspace{0.3cm}\Large
+  \textit{\color{navy}\ProjectSubTitle}\\
+  {\color{gray}\hrulefill}\\
+  \small\mdseries\vspace{0.5cm}
+  \ProjectDescription\\
+  \CourseName\ \CourseCode
+  \vspace*{-0.5em}
+  \end{flushleft}}
+
+% ================================================================
+\endinput
