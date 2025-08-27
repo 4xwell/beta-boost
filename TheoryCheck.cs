@@ -22,7 +22,7 @@ public class TheoryCheck : MonoBehaviour
 
 	void Awake() 
 	{
-		pointA ??= transform;		// fallbacks
+		pointA ??= transform;		// reference fallbacks
 		pointB ??= transform;
 		player ??= FindObjectOfType<PlayerController>();
 	}

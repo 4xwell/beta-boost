@@ -10,35 +10,27 @@ public class VertexManager : MonoBehaviour
 {
 	[Header("Scene References")]
 	[SerializeField] Transform 		  envRoot;		// static environment parent
-	[SerializeField] PlayerController player;			// provides β, γ and v̂
-	[SerializeField] LorentzTransform lorentz;    	// provides Lorentz matrix Λ
+	[SerializeField] PlayerController player;		// provides β, γ and v̂
+	[SerializeField] LorentzTransform lorentz;  	// provides Lorentz matrix Λ
 
 	// Data structure to hold per-object mesh info.
 	class MeshData
 	{
-		public MeshFilter filter;			 // Renderer component
-		public Mesh 	  workMesh;  		// Mesh copy safe to modify
-		public Vector3[]  restWorld; 		// Cached rest-frame vertices in world space
+		public MeshFilter filter;			 		 // Renderer component
+		public Mesh 	  workMesh;  		   		// Mesh copy safe to modify
+		public Vector3[]  restWorld; 		   		// Cached rest-frame vertices in world space
 	}
 	
 	private readonly List<MeshData> meshes = new();	// list static meshes
 
 	void Awake() {
-		envRoot ??= transform;				// fallbacks
+		envRoot ??= transform;						// reference fallbacks
 		player  ??= FindObjectOfType<PlayerController>();
 		lorentz ??= FindObjectOfType<LorentzTransform>();
 	}
 
 	void Start()
 	{
-		// Auto‑set references if left empty
-		// player  = player  != null ? player  : FindObjectOfType<PlayerController>();
-		// lorentz = lorentz != null ? lorentz : FindObjectOfType<LorentzTransform>();
-		// envRoot = envRoot != null ? envRoot : transform;
-		player  ??= FindObjectOfType<PlayerController>();
-		lorentz ??= FindObjectOfType<LorentzTransform>();
-		envRoot ??= transform;
-
 		// Find all MeshFilter components in the environment
 		foreach (var mf in envRoot.GetComponentsInChildren<MeshFilter>())
 		{
