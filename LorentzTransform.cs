@@ -8,44 +8,28 @@ using UnityEngine;
 public class LorentzTransform : MonoBehaviour
 {
 	[SerializeField] PlayerController player;
-	public float4x4 Lambda { get; private set; } = float4x4.identity;
 
 	void Awake() => player ??= FindObjectOfType<PlayerController>(); // fallback
 
-	void Update()
+	public float4x4 Lambda
 	{
-		// Get relativistic properties
-		var beta    = player.Beta;
-		if (beta < 1e-6f) { Lambda = float4x4.identity; return; } // Avoid issues at small speeds
-		var b       = player.BetaVec;
-		var gamma   = player.Gamma;
-		var g       = gamma * b;
-		var f       = (gamma-1f)/(beta*beta); // factor for compactness
+		get
+		{
+			float beta = player.Beta;
+			if (beta < 1e-6f) return float4x4.identity;	 // small β robustness
 
-		// Construct the Minkowski transformation matrix
-		Lambda = new float4x4(
-			new float4(gamma, g.x, g.y, g.z),  // Col 0 (ct)
-			new float4(                        // Col 1 (x)
-				g.x,
-				1f + f * b.x * b.x,
-				f * b.x * b.y,
-				f * b.x * b.z
-			),
-			new float4(                        // Col 2 (y)
-				g.y,
-				f * b.y * b.x,
-				1f + f * b.y * b.y,
-				f * b.y * b.z
-			),
-			new float4(                        // Col 3 (<y>)
-				g.z,
-				f * b.z * b.x,
-				f * b.z * b.y,
-				1f + f * b.z * b.z
-			)
-		);
+			float3 b 	 = player.BetaVec;
+			float  gamma = player.Gamma;
+			float3 g	 = gamma * b;
+			float  f 	 = (gamma - 1f) / (beta * beta); // (γ - 1)/β² factor
+
+			// column-major construction
+			float4 c0 = new float4(gamma, g.x, 			g.y, 		  g.z);
+			float4 c1 = new float4(g.x,   1f+f*b.x*b.x, f*b.x*b.y, 	  f*b.x*b.z);
+			float4 c2 = new float4(g.y,   f*b.y*b.x, 	1f+f*b.y*b.y, f*b.y*b.z);
+			float4 c3 = new float4(g.z,   f*b.z*b.x, 	f*b.z*b.y, 	  1f+f*b.z*b.z);
+
+			return new float4x4(c0, c1, c2, c3);
+		}
 	}
-
-	public float4x4 GetLambda() => Lambda; 	   // legacy function
-
 }
