@@ -13,7 +13,7 @@ using Cinemachine;
 
 public class PlayerController : MonoBehaviour
 {
-	#region Settings
+	#region[#213] Settings
 
 	[Header("Movement")]
 	[SerializeField] float moveSpeed = 80.0f;
@@ -33,13 +33,30 @@ public class PlayerController : MonoBehaviour
 
 	[Header("Camera")]
 	[SerializeField] GameObject cinemachineTarget;
-	[SerializeField] float pitchMin = -30.0f;
-	[SerializeField] float pitchMax = 70.0f;
-	private Camera 		  mainCam;
-	private float 		   yaw;
-	private float 		   pitch;
+	private Camera mainCam;
 	private CinemachineFreeLook freeLook;
 	private CinemachineFreeLook.Orbit[] orbitsDefault;
+	public  float 		   baseSenseX;
+	public  float 		   baseSenseY;
+
+	public float LookSpeedX
+	{
+		// get => baseSenseX;
+		set => freeLook.m_XAxis.m_MaxSpeed = freeLook.m_XAxis.m_MaxSpeed * value;
+	}
+	public float LookSpeedY
+	{
+		// get => baseSenseY;
+		set => freeLook.m_YAxis.m_MaxSpeed = freeLook.m_YAxis.m_MaxSpeed * value;
+	}
+	public float LookSensitivity
+	{
+		get => baseSenseY;
+		set => freeLook.m_YAxis.m_MaxSpeed = value;
+	}
+
+	[Header("UI")]
+	[SerializeField] private SpeedDisplay ui;
 
 	// ---------- Internals ----------
 	private CharacterController controller;
@@ -49,9 +66,7 @@ public class PlayerController : MonoBehaviour
 	// ---------- Inputs ----------
 	private PlayerInput   input;
 	private Vector2 	  moveInput;
-	private Vector2 	  lookInput;
 	private bool 		  jumpInput;
-	private bool 		  runInput;
 
 	// ---------- Physics ----------
 	private bool 		  grounded;
@@ -63,13 +78,17 @@ public class PlayerController : MonoBehaviour
 	void Awake()
 	{
 		controller = GetComponent<CharacterController>();
-		input 	   = GetComponent<PlayerInput>();
-		graphics   = transform.Find("Graphics");
+		input = GetComponent<PlayerInput>();
+		graphics = transform.Find("Graphics");
 
-		mainCam    = Camera.main;
-		yaw 	   = cinemachineTarget.transform.rotation.eulerAngles.y;
-		freeLook   = FindObjectOfType<Cinemachine.CinemachineFreeLook>();
-		if (freeLook) orbitsDefault = (CinemachineFreeLook.Orbit[])freeLook.m_Orbits.Clone();
+		mainCam = Camera.main;
+		freeLook = FindObjectOfType<Cinemachine.CinemachineFreeLook>();
+		if (freeLook)
+		{
+			orbitsDefault = (CinemachineFreeLook.Orbit[])freeLook.m_Orbits.Clone();
+			baseSenseX = freeLook.m_XAxis.m_MaxSpeed;
+			baseSenseY = freeLook.m_YAxis.m_MaxSpeed;
+		}
 	}
 
 	void Update()
@@ -77,7 +96,6 @@ public class PlayerController : MonoBehaviour
 		GroundCheck();    // ground check
 		MoveSteer();      // general movement
 		GravityAndJump(); // vertical movement
-		CameraRotation(); // camera movement
 
 		controller.Move(velocity * Time.deltaTime);
 		wasGrounded = grounded;
@@ -88,10 +106,10 @@ public class PlayerController : MonoBehaviour
 
 	// ---------- Input ----------
 	public void OnMove(InputValue v)  => moveInput = v.Get<Vector2>();
-	public void OnLook(InputValue v)  => lookInput = v.Get<Vector2>();
 	public void OnJump(InputValue v)  => jumpInput = v.isPressed;
 	public void OnDigit(InputValue v) => SetBeta(v.Get<float>());
 	public void OnFly(InputValue v)   => Flight();
+	public void OnPause(InputValue v) => ui?.PauseScreen();
 
 
 	// ---------- Movement ----------
@@ -117,12 +135,12 @@ public class PlayerController : MonoBehaviour
 		if (isMoving > 0.01f) currentVel += targetDir * accel * Time.deltaTime;
 
 		// align movement with camera
-		if (lookInput.sqrMagnitude > 0.01f) currentVel = Vector3.Lerp(currentVel, camForward * currentSpeed, Time.deltaTime * turnRate);
+		// if (lookInput.sqrMagnitude > 0.01f)
+		currentVel = Vector3.Lerp(currentVel, camForward * currentSpeed, Time.deltaTime * turnRate);
 
 		// set new velocity
 		if (flyMode) velocity = currentVel;
 		else { velocity.x = currentVel.x; velocity.z = currentVel.z; }
-
 	}
 
 	void Flight()
@@ -150,6 +168,7 @@ public class PlayerController : MonoBehaviour
 	}
 
 
+	// ---------- Classical physics ----------
 	void GravityAndJump()
 	{
 		if (flyMode) return;        // no gravity/jump in fly mode
@@ -164,48 +183,53 @@ public class PlayerController : MonoBehaviour
 		else
 		{
 			// Bounce if landing with downward velocity
-			if (!wasGrounded && velocity.y < -1f)
-			{
-				velocity.y = -velocity.y * BounceFactor;
-			}
+			if (!wasGrounded && velocity.y < -1f) velocity.y = -velocity.y * BounceFactor;
 
-			if (velocity.y < 0f) velocity.y = 0f;
+			if (velocity.y <= 0f && !flyMode)
+			{
+				bool slopeAdjusted = false;
+				Vector3 castOrigin   = transform.position + Vector3.up * (controller.height * 0.5f);
+				float  castRadius    = controller.radius * 0.95f;
+				float  castDistance  = controller.height * 0.5f + groundedOffset + 0.5f;
+
+				if (Physics.SphereCast(castOrigin, castRadius, Vector3.down, out RaycastHit slopeHit, castDistance, groundLayers, QueryTriggerInteraction.Ignore))
+				{
+					if (slopeHit.normal.y > 0.001f)
+					{
+						Vector3 horizontalVel  = new(velocity.x, 0f, velocity.z);
+						float  horizontalSpeed = horizontalVel.magnitude;
+
+						if (horizontalSpeed > 1e-4f)
+						{
+							Vector3 slopeVel = Vector3.ProjectOnPlane(horizontalVel, slopeHit.normal);
+							if (slopeVel.sqrMagnitude > 1e-6f)
+							{
+								slopeVel = slopeVel.normalized * horizontalSpeed;
+								velocity.x = slopeVel.x;
+								velocity.z = slopeVel.z;
+								velocity.y = slopeVel.y;
+								slopeAdjusted = true;
+							}
+						}
+					}
+				}
+
+				if (!slopeAdjusted) velocity.y = 0f;
+			}
+			else if (velocity.y < 0f) velocity.y = 0f;
 		}
 	}
 
 
 	void GroundCheck()
 	{
+		// ground check
 		Vector3 spherePos = new(transform.position.x, transform.position.y - groundedOffset, transform.position.z);
 		grounded = Physics.CheckSphere(spherePos, groundedRadius, groundLayers, QueryTriggerInteraction.Ignore);
 	}
 
 
 	// ---------- Camera ----------
-	void CameraRotation()
-	{
-		if (lookInput.sqrMagnitude > 0.01f)
-		{
-			float mult = input.currentControlScheme == "KeyboardMouse" ? 1f : Time.deltaTime;
-			yaw 	 += lookInput.x * mult;
-			pitch 	 += lookInput.y * mult;
-		}
-
-		yaw   = ClampAngle(yaw, float.MinValue, float.MaxValue);
-		pitch = ClampAngle(pitch, pitchMin, pitchMax);
-
-		cinemachineTarget.transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
-	}
-
-
-	static float ClampAngle(float angle, float min, float max)
-	{
-		if (angle < -360f) angle += 360f;
-		if (angle > 360f)  angle -= 360f;
-		return Mathf.Clamp(angle, min, max);
-	}
-
-
 	void FlyCam() // adjust camera orbits when flying
 	{
 		if (!freeLook || orbitsDefault == null) return;
@@ -220,6 +244,7 @@ public class PlayerController : MonoBehaviour
 	}
 
 
+	// ---------- Animation ----------
 	void RollBall()
 	{
 		// Rolling animation of character ball
@@ -243,5 +268,4 @@ public class PlayerController : MonoBehaviour
 	public float 	Beta	 => Mathf.Clamp(velocity.magnitude / moveSpeed, 0f, 0.99f);
 	public float3 	BetaVec	 => Vhat * Beta;
 	public float 	Gamma	 => 1f / Mathf.Sqrt(1f - Beta * Beta);
-
 }

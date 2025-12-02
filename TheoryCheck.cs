@@ -7,18 +7,16 @@ using UnityEngine;
 public class TheoryCheck : MonoBehaviour
 {
 	[Header("Scene References")]
-	[SerializeField] Transform        pointA;
-	[SerializeField] Transform        pointB;
 	[SerializeField] PlayerController player;
+	[SerializeField] Transform		  pointA;
+	[SerializeField] Transform		  pointB;
 
-	[Header("Live values")]
-    [SerializeField] float measured; // |A - B|
-    [SerializeField] float expected; // L0 * sqrt(1 - beta^2 * cos^2(theta))
-    [SerializeField] float relError; // (measured - expected)/expected
-
-	Vector3  restVec;	    		// rest vector from A_0 to B_0
-	float 	  L0;		    	 	 // rest length |A_0 - B_0|
-	Renderer rendA, rendB;
+	private Vector3	restVec; 	   // rest vector from A₀ to B₀
+	private float	 L0;        	// rest length L₀ = |B₀ - A₀|
+	private float	 measured; 		// L' = |B' - A'|
+	private float	 expected;		// L' = L₀ * √(1 - β²*cos²θ)
+	private float	 error;     	// (measured - expected)/expected
+	private Renderer rendA, rendB; // renderers for A and B
 
 	void Awake() 
 	{
@@ -30,35 +28,35 @@ public class TheoryCheck : MonoBehaviour
 	void Start()
 	{
 		rendA = pointA.GetComponent<Renderer>();
-        rendB = pointB.GetComponent<Renderer>();
+		rendB = pointB.GetComponent<Renderer>();
 
-        // Capture rest positions using renderer bounds (transforms not updated, only meshes)
-        var A0 	= rendA.bounds.center;
-        var B0 	= rendB.bounds.center;
-        restVec = B0 - A0;
+		// Capture rest positions using renderer bounds (transforms not updated, only meshes)
+		var A0 	= rendA.bounds.center;
+		var B0 	= rendB.bounds.center;
+		restVec = B0 - A0;
 		L0   	= restVec.magnitude;
 	}
 
 	void Update()
 	{
-		// Capture current positions using renderer bounds
-		var A1 = rendA.bounds.center;
-        var B1 = rendB.bounds.center;
-        measured = Vector3.Distance(A1, B1);
-
-		// Calculate angle between rest vector and player direction
-        float cosT = (L0 > 1e-6f) ? Mathf.Abs(Vector3.Dot(restVec / L0, player.VelDir)) : 0f;
-
-		expected = L0 * Mathf.Sqrt(1f - player.Beta * player.Beta * cosT * cosT);	  // theoretical prediction
-        relError = expected > 1e-9f ? Mathf.Abs(measured - expected) / expected : 0f; // relative error
-        
-		if (Input.GetKeyDown(KeyCode.M)) 											  // log measurement on 'M' keypress
+		if (Input.GetKeyDown(KeyCode.M)) // log measurement on 'M' keypress
 		{
-			var fps = 1f / Time.unscaledDeltaTime;
+			// measure current distance
+			var A1 = rendA.bounds.center;
+			var B1 = rendB.bounds.center;
+			measured = (B1 - A1).magnitude;
+
+			// calculate theoretical prediction
+			float cosT = (L0 > 1e-6f) ? Vector3.Dot(restVec / L0, player.Vhat) : 0f;
+			expected = L0 * Mathf.Sqrt(1f - player.Beta * player.Beta * cosT * cosT);
+
+			// compute error
+			error = expected > 1e-9f ? Mathf.Abs(measured - expected) / expected : 0f;
+
+			var fps 	  = 1f / Time.unscaledDeltaTime;
 			float angleDeg = Mathf.Acos(cosT) * Mathf.Rad2Deg;
-			Debug.Log($"β={player.Beta:F3}, fps={fps:F1}, θ={angleDeg:F2}, L_sim={measured:F4}, L_th={expected:F4}, error={relError:E2}");
+			Debug.Log($"β = {player.Beta:F3}, fps = {fps:F1}, θ = {angleDeg:F2}, error = {error:E2}");
 		}
 	}
 
-	public float RelError => relError; 	  // expose error for GUI
 }
