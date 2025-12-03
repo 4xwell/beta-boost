@@ -16,47 +16,33 @@ public class PlayerController : MonoBehaviour
 	#region[#213] Settings
 
 	[Header("Movement")]
-	[SerializeField] float moveSpeed = 80.0f;
-	[SerializeField] float accel = 10f;
-	[SerializeField] float turnRate = 15f;
+	[SerializeField] float moveSpeed 		= 80.0f;
+	[SerializeField] float accel 			= 10f;
+	[SerializeField] float turnRate 		= 15f;
 	private Vector3 	  velocity;
 
 	[Header("Jump / gravity")]
-	[SerializeField] float jumpHeight = 15f;
-	[SerializeField] float gravity = 30f;
-	[SerializeField] float BounceFactor = 0.5f;
+	[SerializeField] float jumpHeight 		= 15f;
+	[SerializeField] float gravity 			= 30f;
+	[SerializeField] float BounceFactor 	= 0.5f;
 
 	[Header("Ground check")]
-	[SerializeField] float groundedOffset = 0.1f;
-	[SerializeField] float groundedRadius = 2.0f;
+	[SerializeField] float groundedOffset 	= 0.1f;
+	[SerializeField] float groundedRadius 	= 2.0f;
 	[SerializeField] LayerMask groundLayers;
 
 	[Header("Camera")]
-	[SerializeField] GameObject cinemachineTarget;
-	private Camera mainCam;
-	private CinemachineFreeLook freeLook;
+	[SerializeField] GameObject 		cinemachineTarget;
+	private Camera 						mainCam;
+	private CinemachineFreeLook 		freeLook;
 	private CinemachineFreeLook.Orbit[] orbitsDefault;
-	public  float 		   baseSenseX;
-	public  float 		   baseSenseY;
-
-	public float LookSpeedX
-	{
-		// get => baseSenseX;
-		set => freeLook.m_XAxis.m_MaxSpeed = freeLook.m_XAxis.m_MaxSpeed * value;
-	}
-	public float LookSpeedY
-	{
-		// get => baseSenseY;
-		set => freeLook.m_YAxis.m_MaxSpeed = freeLook.m_YAxis.m_MaxSpeed * value;
-	}
-	public float LookSensitivity
-	{
-		get => baseSenseY;
-		set => freeLook.m_YAxis.m_MaxSpeed = value;
-	}
+	public  float 		   				 baseSenseX;
+	public  float 		   				 baseSenseY;
+	public float LookSpeedX{set => freeLook.m_XAxis.m_MaxSpeed = baseSenseX * value;}
+	public float LookSpeedY{set => freeLook.m_YAxis.m_MaxSpeed = baseSenseY * value;}
 
 	[Header("UI")]
-	[SerializeField] private SpeedDisplay ui;
+	[SerializeField] private UIManager ui;
 
 	// ---------- Internals ----------
 	private CharacterController controller;
@@ -77,17 +63,18 @@ public class PlayerController : MonoBehaviour
 
 	void Awake()
 	{
-		controller = GetComponent<CharacterController>();
-		input = GetComponent<PlayerInput>();
-		graphics = transform.Find("Graphics");
+		controller 		= GetComponent<CharacterController>();
+		input 			= GetComponent<PlayerInput>();
+		graphics 		= transform.Find("Graphics");
 
-		mainCam = Camera.main;
-		freeLook = FindObjectOfType<Cinemachine.CinemachineFreeLook>();
+		mainCam 		= Camera.main;
+		freeLook 		= FindObjectOfType<Cinemachine.CinemachineFreeLook>();
+
 		if (freeLook)
 		{
 			orbitsDefault = (CinemachineFreeLook.Orbit[])freeLook.m_Orbits.Clone();
-			baseSenseX = freeLook.m_XAxis.m_MaxSpeed;
-			baseSenseY = freeLook.m_YAxis.m_MaxSpeed;
+			baseSenseX 	= freeLook.m_XAxis.m_MaxSpeed;
+			baseSenseY 	= freeLook.m_YAxis.m_MaxSpeed;
 		}
 	}
 
@@ -105,11 +92,12 @@ public class PlayerController : MonoBehaviour
 
 
 	// ---------- Input ----------
-	public void OnMove(InputValue v)  => moveInput = v.Get<Vector2>();
-	public void OnJump(InputValue v)  => jumpInput = v.isPressed;
-	public void OnDigit(InputValue v) => SetBeta(v.Get<float>());
-	public void OnFly(InputValue v)   => Flight();
-	public void OnPause(InputValue v) => ui?.PauseScreen();
+	public void OnMove(InputValue v)   => moveInput = v.Get<Vector2>();
+	public void OnJump(InputValue v)   => jumpInput = v.isPressed;
+	public void OnDigit(InputValue v)  => SetBeta(v.Get<float>());
+	public void OnFly(InputValue v)    => Flight();
+	public void OnPause(InputValue v)  => ui.PauseScreen();
+	public void OnShowUI(InputValue v) => ui.ToggleUI();
 
 
 	// ---------- Movement ----------
@@ -123,10 +111,16 @@ public class PlayerController : MonoBehaviour
 		Vector3 camForward = mainCam.transform.forward;
 		Vector3 camRight   = mainCam.transform.right;
 
-		if (!flyMode) { camForward.y = 0; camRight.y = 0; }
+		if (!flyMode) 
+		{
+			camForward.y = 0; 
+			camForward.Normalize(); 
+			camRight.y = 0; 
+			camRight.Normalize();
+		}
 
 		// set target direction from camera and input
-		Vector3 targetDir = (isMoving > 0.01f) ? (camForward * moveInput.y + camRight * moveInput.x).normalized : Vector3.zero;
+		Vector3 targetDir  = (isMoving > 0.01f) ? (camForward * moveInput.y + camRight * moveInput.x).normalized : Vector3.zero;
 
 		// limit to moveSpeed
 		if (currentSpeed > moveSpeed) currentVel = currentVel.normalized * moveSpeed;
@@ -140,15 +134,16 @@ public class PlayerController : MonoBehaviour
 
 		// set new velocity
 		if (flyMode) velocity = currentVel;
-		else { velocity.x = currentVel.x; velocity.z = currentVel.z; }
+		else { velocity.x 	 = currentVel.x; velocity.z = currentVel.z; }
 	}
 
 	void Flight()
 	{
-		flyMode = !flyMode; // Toggle fly mode and jump if grounded
+		// Toggle fly mode and jump if grounded
+		flyMode = !flyMode;
 		if (grounded) velocity.y = Mathf.Sqrt(jumpHeight * gravity);
-
-		FlyCam();   	  // flight camera orbits
+		// flight camera orbits
+		FlyCam();
 	}
 
 
@@ -156,70 +151,40 @@ public class PlayerController : MonoBehaviour
 	{
 		// Determine direction of motion
 		Vector3 dir = velocity.sqrMagnitude > 1e-6f ? Vhat : transform.forward;
-
-		if (!flyMode) dir.y = 0; // Flatten direction when grounded
+		// Flatten direction when grounded
+		if (!flyMode) dir.y = 0;
 		dir.Normalize();
 
 		// Calculate the target velocity vector and apply it
 		Vector3 targetVel = dir * (targetBeta * moveSpeed);
 
 		if (flyMode) velocity = targetVel;
-		else { velocity.x = targetVel.x; velocity.z = targetVel.z; }
+		else { velocity.x 	 = targetVel.x; velocity.z = targetVel.z; }
 	}
 
 
 	// ---------- Classical physics ----------
+
 	void GravityAndJump()
 	{
-		if (flyMode) return;        // no gravity/jump in fly mode
-
-		if (jumpInput && grounded) // jump if grounded
+		// no gravity/jump in fly mode
+		if (flyMode) return;
+		// jump if grounded
+		if (jumpInput && grounded)
 		{
 			velocity.y = Mathf.Sqrt(jumpHeight * gravity);
-			jumpInput  = false;
+			jumpInput = false;
 		}
-
-		if (!grounded) velocity.y -= gravity * Time.deltaTime;  // fall if not grounded
+		// fall if not grounded - apply gravity
+		if (!grounded) velocity.y -= gravity * Time.deltaTime;
 		else
 		{
 			// Bounce if landing with downward velocity
 			if (!wasGrounded && velocity.y < -1f) velocity.y = -velocity.y * BounceFactor;
-
-			if (velocity.y <= 0f && !flyMode)
-			{
-				bool slopeAdjusted = false;
-				Vector3 castOrigin   = transform.position + Vector3.up * (controller.height * 0.5f);
-				float  castRadius    = controller.radius * 0.95f;
-				float  castDistance  = controller.height * 0.5f + groundedOffset + 0.5f;
-
-				if (Physics.SphereCast(castOrigin, castRadius, Vector3.down, out RaycastHit slopeHit, castDistance, groundLayers, QueryTriggerInteraction.Ignore))
-				{
-					if (slopeHit.normal.y > 0.001f)
-					{
-						Vector3 horizontalVel  = new(velocity.x, 0f, velocity.z);
-						float  horizontalSpeed = horizontalVel.magnitude;
-
-						if (horizontalSpeed > 1e-4f)
-						{
-							Vector3 slopeVel = Vector3.ProjectOnPlane(horizontalVel, slopeHit.normal);
-							if (slopeVel.sqrMagnitude > 1e-6f)
-							{
-								slopeVel = slopeVel.normalized * horizontalSpeed;
-								velocity.x = slopeVel.x;
-								velocity.z = slopeVel.z;
-								velocity.y = slopeVel.y;
-								slopeAdjusted = true;
-							}
-						}
-					}
-				}
-
-				if (!slopeAdjusted) velocity.y = 0f;
-			}
-			else if (velocity.y < 0f) velocity.y = 0f;
+			// if (velocity.y < 0f) velocity.y = 0f;
+			if (velocity.y < 0f) velocity.y = -2f;
 		}
 	}
-
 
 	void GroundCheck()
 	{
