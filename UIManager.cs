@@ -56,7 +56,7 @@ public class UIManager : MonoBehaviour
 		{
 			startButton.onClick.AddListener(() => StartGame());
 			
-			Debug.Log("StartButton listener added.");
+			// Debug.Log("StartButton listener added.");
 		}
 	}
 
@@ -95,7 +95,7 @@ public class UIManager : MonoBehaviour
 	public void StartGame()
 	{
 		// Show start menu, click to start
-		Debug.Log("StartGame called.");
+		// Debug.Log("StartGame called.");
 		if (startMenu)
 		{
 			if (started)

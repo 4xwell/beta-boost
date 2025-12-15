@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Measures distance between two objects A and B and compares to theoretical prediction
+/// Measures distance between two objects A and B and calculates absolute relative error compared to theoretical prediction
 /// </summary>
 
 public class TheoryCheck : MonoBehaviour
@@ -42,21 +42,20 @@ public class TheoryCheck : MonoBehaviour
 		if (Input.GetKeyDown(KeyCode.M)) // log measurement on 'M' keypress
 		{
 			// measure current distance
-			var A1 = rendA.bounds.center;
-			var B1 = rendB.bounds.center;
-			measured = (B1 - A1).magnitude;
+			var A1 	  = rendA.bounds.center;
+			var B1 	  = rendB.bounds.center;
+			measured  = (B1 - A1).magnitude;
+			float beta = player.Beta;
 
 			// calculate theoretical prediction
 			float cosT = (L0 > 1e-6f) ? Vector3.Dot(restVec / L0, player.Vhat) : 0f;
-			expected = L0 * Mathf.Sqrt(1f - player.Beta * player.Beta * cosT * cosT);
-
+			expected  = L0 * Mathf.Sqrt(1f - beta * beta * cosT * cosT);
 			// compute error
 			error = expected > 1e-9f ? Mathf.Abs(measured - expected) / expected : 0f;
 
 			var fps 	  = 1f / Time.unscaledDeltaTime;
 			float angleDeg = Mathf.Acos(cosT) * Mathf.Rad2Deg;
-			Debug.Log($"β = {player.Beta:F3}, fps = {fps:F1}, θ = {angleDeg:F2}, error = {error:E2}");
+			Debug.Log($"β = {beta:F3}, fps = {fps:F1}, θ = {angleDeg:F2}, error = {error:E2}");
 		}
 	}
-
 }

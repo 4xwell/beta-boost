@@ -19,12 +19,12 @@ using System.Collections.Generic;
 /// 	5	convert WORLD → LOCAL
 /// </summary>
 
-public class VertexManagerNew : MonoBehaviour
+public class VertexManager : MonoBehaviour
 {
 	[Header("Scene references")]
 	[SerializeField] Transform 		  envRoot;	// static environment parent
 	[SerializeField] PlayerController player;  	// provides β, γ and v̂
-	[SerializeField] LorentzTransform lorentz; 	// provides Lorentz matrix Λ
+	[SerializeField] LorentzTransform lorentz;  // provides Lorentz matrix Λ
 
 	// mesh info data structure
 	class MeshData

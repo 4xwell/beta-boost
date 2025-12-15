@@ -36,8 +36,8 @@ public class PlayerController : MonoBehaviour
 	private Camera 						mainCam;
 	private CinemachineFreeLook 		freeLook;
 	private CinemachineFreeLook.Orbit[] orbitsDefault;
-	public  float 		   				 baseSenseX;
-	public  float 		   				 baseSenseY;
+	private float 		   				 baseSenseX;
+	private float 		   				 baseSenseY;
 	public float LookSpeedX{set => freeLook.m_XAxis.m_MaxSpeed = baseSenseX * value;}
 	public float LookSpeedY{set => freeLook.m_YAxis.m_MaxSpeed = baseSenseY * value;}
 
@@ -115,7 +115,7 @@ public class PlayerController : MonoBehaviour
 		{
 			camForward.y = 0; 
 			camForward.Normalize(); 
-			camRight.y = 0; 
+			camRight.y 	 = 0; 
 			camRight.Normalize();
 		}
 
@@ -181,8 +181,8 @@ public class PlayerController : MonoBehaviour
 		{
 			// Bounce if landing with downward velocity
 			if (!wasGrounded && velocity.y < -1f) velocity.y = -velocity.y * BounceFactor;
-			// if (velocity.y < 0f) velocity.y = 0f;
-			if (velocity.y < 0f) velocity.y = -2f;
+			if (velocity.y < 0f) velocity.y = 0f;
+			// if (velocity.y < 0f) velocity.y = -2f;
 		}
 	}
 
