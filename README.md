@@ -9,6 +9,7 @@ better intuition of some notable relativistic effects such as length contraction
 boosts, coordinate transformations and more.
 
 A working demo can be found [here](https://play.unity.com/en/games/0d116c5e-0aab-4967-a5ad-bc38de8af087/beta-boost).
+The development blog is found [here](https://lorentztransform.wordpress.com).
 
 ## Content
 1. `PlayerController.cs` - Controls the playable character. Based on the following player controller from Unity: [Starter Assets - ThirdPerson](https://assetstore.unity.com/packages/essentials/starter-assets-thirdperson-updates-in-new-charactercontroller-pa-196526?srsltid=AfmBOorK0biqhhL-1w10QyQ8-k_B-XmCcJ50nZA-1Nb8Vv9RkoAjo4BW)
